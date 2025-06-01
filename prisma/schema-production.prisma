@@ -1,0 +1,344 @@
+// Prisma Schema para Produção - PostgreSQL
+// Restaurant Management System - AWS Production
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User management - Gerenciamento de usuários
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("USER") // ADMIN, MANAGER, USER
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations with restaurants - Relações com restaurantes
+  restaurants Restaurant[]
+
+  // Relations with financial records - Relações com registros financeiros
+  accountsPayable    AccountPayable[]
+  accountsReceivable AccountReceivable[]
+  inventoryItems     InventoryItem[]
+  purchases          Purchase[]
+  calendarEvents     CalendarEvent[]
+  
+  @@map("users")
+  @@index([email])
+  @@index([role])
+}
+
+model Restaurant {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  address     String
+  phone       String?
+  email       String?
+  logo        String?
+  color       String?  @default("#d96d62")
+  ownerId     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations - Relações
+  owner              User                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  accountsPayable    AccountPayable[]
+  accountsReceivable AccountReceivable[]
+  inventoryItems     InventoryItem[]
+  purchases          Purchase[]
+  calendarEvents     CalendarEvent[]
+
+  @@map("restaurants")
+  @@index([ownerId])
+}
+
+// Accounts Payable - Contas a Pagar
+model AccountPayable {
+  id            String    @id @default(cuid())
+  description   String
+  amount        Decimal   @db.Decimal(10, 2)
+  dueDate       DateTime
+  paidDate      DateTime?
+  status        String    @default("PENDING") // PENDING, PAID, OVERDUE, CANCELLED
+  category      String    // RENT, UTILITIES, FOOD_SUPPLIES, etc.
+  vendor        String?
+  notes         String?
+  attachments   Json?     // JSON for file paths
+  userId        String
+  restaurantId  String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations - Relações
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  
+  @@map("accounts_payable")
+  @@index([restaurantId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+// Accounts Receivable - Contas a Receber
+model AccountReceivable {
+  id            String    @id @default(cuid())
+  description   String
+  amount        Decimal   @db.Decimal(10, 2)
+  dueDate       DateTime
+  receivedDate  DateTime?
+  status        String    @default("PENDING") // PENDING, PAID, OVERDUE, CANCELLED
+  category      String    // SALES, CATERING, DELIVERY, EVENTS, OTHER
+  customer      String?
+  notes         String?
+  attachments   Json?     // JSON for file paths
+  userId        String
+  restaurantId  String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations - Relações
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  
+  @@map("accounts_receivable")
+  @@index([restaurantId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+// Inventory Management - Gerenciamento de Inventário
+model InventoryItem {
+  id           String        @id @default(cuid())
+  name         String
+  description  String?
+  category     String
+  unit         String
+  quantity     Decimal       @db.Decimal(10, 3)
+  minQuantity  Decimal       @db.Decimal(10, 3)
+  maxQuantity  Decimal?      @db.Decimal(10, 3)
+  costPrice    Decimal       @db.Decimal(10, 2)
+  sellPrice    Decimal?      @db.Decimal(10, 2)
+  supplier     String?
+  location     String?
+  stockType    String        @default("RAW_MATERIAL") // RAW_MATERIAL, FINISHED_PRODUCT, etc.
+  expiryDate   DateTime?
+  notes        String?
+  userId       String
+  restaurantId String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  // Relations - Relações
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant   Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  purchaseItems PurchaseItem[]
+  
+  @@map("inventory_items")
+  @@index([restaurantId])
+  @@index([category])
+  @@index([stockType])
+  @@index([quantity])
+}
+
+// Purchase Management - Gerenciamento de Compras
+model Purchase {
+  id           String         @id @default(cuid())
+  orderNumber  String         @unique
+  supplier     String
+  orderDate    DateTime
+  deliveryDate DateTime?
+  status       String         @default("PENDING") // PENDING, CONFIRMED, DELIVERED, CANCELLED
+  totalAmount  Decimal        @db.Decimal(10, 2)
+  notes        String?
+  attachments  Json?          // JSON for file paths
+  userId       String
+  restaurantId String
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  // Relations - Relações
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  items      PurchaseItem[]
+  
+  @@map("purchases")
+  @@index([restaurantId])
+  @@index([status])
+  @@index([orderDate])
+}
+
+model PurchaseItem {
+  id            String  @id @default(cuid())
+  quantity      Decimal @db.Decimal(10, 3)
+  unitPrice     Decimal @db.Decimal(10, 2)
+  totalPrice    Decimal @db.Decimal(10, 2)
+  purchaseId    String
+  inventoryId   String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations - Relações
+  purchase  Purchase      @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  inventory InventoryItem @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  
+  @@map("purchase_items")
+  @@index([purchaseId])
+  @@index([inventoryId])
+}
+
+// Calendar Events - Eventos do Calendário
+model CalendarEvent {
+  id           String          @id @default(cuid())
+  title        String
+  description  String?
+  startDate    DateTime
+  endDate      DateTime
+  type         String          // MEETING, DELIVERY, MAINTENANCE, etc.
+  priority     String          @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  location     String?
+  attendees    Json?           // JSON for attendees
+  reminders    Json?           // JSON for reminder dates
+  completed    Boolean         @default(false)
+  notes        String?
+  userId       String
+  restaurantId String
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  // Relations - Relações
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  
+  @@map("calendar_events")
+  @@index([restaurantId])
+  @@index([startDate])
+  @@index([type])
+  @@index([priority])
+}
+
+// Staff Management - Gerenciamento de Pessoal
+model Staff {
+  id           String   @id @default(cuid())
+  firstName    String
+  lastName     String
+  email        String?  @unique
+  phone        String?
+  position     String
+  department   String
+  salary       Decimal? @db.Decimal(10, 2)
+  hireDate     DateTime
+  terminationDate DateTime?
+  status       String   @default("ACTIVE") // ACTIVE, INACTIVE, TERMINATED
+  address      String?
+  emergencyContact Json? // JSON for emergency contact info
+  documents    Json?    // JSON for document file paths
+  notes        String?
+  restaurantId String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  payrolls     Payroll[]
+  shifts       ShiftSchedule[]
+  
+  @@map("staff")
+  @@index([restaurantId])
+  @@index([status])
+  @@index([position])
+}
+
+// Payroll - Folha de Pagamento
+model Payroll {
+  id           String   @id @default(cuid())
+  staffId      String
+  period       String   // "2024-01", "2024-02", etc.
+  basicSalary  Decimal  @db.Decimal(10, 2)
+  overtime     Decimal  @default(0) @db.Decimal(10, 2)
+  bonuses      Decimal  @default(0) @db.Decimal(10, 2)
+  deductions   Decimal  @default(0) @db.Decimal(10, 2)
+  netSalary    Decimal  @db.Decimal(10, 2)
+  payDate      DateTime?
+  status       String   @default("PENDING") // PENDING, PAID, CANCELLED
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  staff        Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  
+  @@map("payrolls")
+  @@unique([staffId, period])
+  @@index([period])
+  @@index([status])
+}
+
+// Shift Schedule - Escala de Turnos
+model ShiftSchedule {
+  id          String   @id @default(cuid())
+  staffId     String
+  date        DateTime @db.Date
+  startTime   DateTime @db.Time
+  endTime     DateTime @db.Time
+  breakTime   Int      @default(0) // minutes
+  position    String
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  staff       Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  
+  @@map("shift_schedules")
+  @@unique([staffId, date, startTime])
+  @@index([date])
+  @@index([staffId])
+}
+
+// Sales Analytics - Análise de Vendas
+model SalesRecord {
+  id           String   @id @default(cuid())
+  date         DateTime @db.Date
+  orderNumber  String?
+  customerName String?
+  totalAmount  Decimal  @db.Decimal(10, 2)
+  paymentMethod String  // CASH, CARD, TRANSFER, etc.
+  items        Json     // JSON array of items sold
+  discounts    Decimal  @default(0) @db.Decimal(10, 2)
+  taxes        Decimal  @default(0) @db.Decimal(10, 2)
+  tips         Decimal  @default(0) @db.Decimal(10, 2)
+  restaurantId String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("sales_records")
+  @@index([restaurantId])
+  @@index([date])
+  @@index([paymentMethod])
+}
+
+// System Logs - Logs do Sistema
+model SystemLog {
+  id           String   @id @default(cuid())
+  action       String
+  entityType   String
+  entityId     String?
+  userId       String?
+  details      Json?
+  ipAddress    String?
+  userAgent    String?
+  timestamp    DateTime @default(now())
+
+  @@map("system_logs")
+  @@index([action])
+  @@index([entityType])
+  @@index([timestamp])
+  @@index([userId])
+} 

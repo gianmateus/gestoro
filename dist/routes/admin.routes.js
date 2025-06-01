@@ -1,0 +1,25 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const auth_middleware_1 = require("../middleware/auth.middleware");
+const rateLimiter_middleware_1 = require("../middleware/rateLimiter.middleware");
+const validation_middleware_1 = require("../middleware/validation.middleware");
+const validation_schemas_1 = require("../utils/validation.schemas");
+const admin_controller_1 = require("../controllers/admin.controller");
+const router = (0, express_1.Router)();
+router.use(auth_middleware_1.authenticateToken);
+router.use(admin_controller_1.requireAdmin);
+router.post('/clients', rateLimiter_middleware_1.adminCreateLimiter, (0, validation_middleware_1.validateData)(validation_schemas_1.createClientSchema), admin_controller_1.createClient);
+router.get('/clients', rateLimiter_middleware_1.generalLimiter, admin_controller_1.listAllClients);
+router.get('/clients/deactivated', rateLimiter_middleware_1.generalLimiter, admin_controller_1.listDeactivatedClients);
+router.put('/clients/:clientId', rateLimiter_middleware_1.generalLimiter, validation_middleware_1.validateId, (0, validation_middleware_1.validateData)(validation_schemas_1.updateClientSchema), admin_controller_1.updateClient);
+router.put('/clients/:clientId/deactivate', rateLimiter_middleware_1.generalLimiter, validation_middleware_1.validateId, admin_controller_1.deactivateClient);
+router.put('/clients/:clientId/reactivate', rateLimiter_middleware_1.generalLimiter, validation_middleware_1.validateId, admin_controller_1.reactivateClient);
+router.delete('/clients/:clientId', rateLimiter_middleware_1.adminCreateLimiter, validation_middleware_1.validateId, admin_controller_1.deleteClient);
+router.get('/payments', rateLimiter_middleware_1.generalLimiter, admin_controller_1.listAllPayments);
+router.post('/payments', rateLimiter_middleware_1.paymentLimiter, (0, validation_middleware_1.validateData)(validation_schemas_1.createPaymentSchema), admin_controller_1.createPayment);
+router.put('/payments/:paymentId/paid', rateLimiter_middleware_1.paymentLimiter, validation_middleware_1.validateId, (0, validation_middleware_1.validateData)(validation_schemas_1.markPaymentAsPaidSchema), admin_controller_1.markPaymentAsPaid);
+router.post('/payments/generate-monthly', rateLimiter_middleware_1.adminCreateLimiter, (0, validation_middleware_1.validateData)(validation_schemas_1.generateMonthlyPaymentsSchema), admin_controller_1.generateMonthlyPayments);
+router.put('/payments/update-overdue', rateLimiter_middleware_1.generalLimiter, admin_controller_1.updateOverduePayments);
+exports.default = router;
+//# sourceMappingURL=admin.routes.js.map
